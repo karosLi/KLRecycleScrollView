@@ -41,7 +41,7 @@
     self.hmessage = [[KLRecycleScrollView alloc] initWithFrame:CGRectMake(20, 400, 200, 50) direction:KLRecycleScrollViewDirectionFromLeftToRight];
     self.hmessage.delegate = self;
     self.hmessage.scrollInterval = 2;
-//    self.hmessage.clipsToBounds = NO;
+    self.hmessage.clipsToBounds = NO;
     self.hmessage.backgroundColor = [UIColor colorWithWhite:0 alpha:0.4];
     
     [self.view addSubview:self.hmessage];

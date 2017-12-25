@@ -47,7 +47,7 @@
     [self addSubview:self.scrollView];
     
     self.containerViews = [NSMutableArray array];
-    for (NSInteger i = 0; i < 3; i++) {
+    for (NSInteger i = 0; i < 5; i++) {
         UIView *containerView = [UIView new];
         
         if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
@@ -63,13 +63,13 @@
     }
     
     if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
-        [self.scrollView setContentSize:CGSizeMake(self.bounds.size.width, self.bounds.size.height * 3)];
+        [self.scrollView setContentSize:CGSizeMake(self.bounds.size.width, self.bounds.size.height * 5)];
         self.scrollView.contentOffset = CGPointMake(0, self.bounds.size.height);
     } else if (self.direction == KLRecycleScrollViewDirectionFromLeftToRight) {
-        [self.scrollView setContentSize:CGSizeMake(self.bounds.size.width * 3, self.bounds.size.height)];
+        [self.scrollView setContentSize:CGSizeMake(self.bounds.size.width * 5, self.bounds.size.height)];
         self.scrollView.contentOffset = CGPointMake(self.bounds.size.width, 0);
     } else {
-        [self.scrollView setContentSize:CGSizeMake(self.bounds.size.width, self.bounds.size.height * 3)];
+        [self.scrollView setContentSize:CGSizeMake(self.bounds.size.width, self.bounds.size.height * 5)];
         self.scrollView.contentOffset = CGPointMake(0, self.bounds.size.height);
     }
     
@@ -114,37 +114,49 @@
     }
     
     NSInteger preIndex = self.index - 1 >= 0 ? self.index - 1 : self.totalItemsCount - 1;
+    NSInteger prepreIndex = preIndex - 1 >= 0 ? preIndex - 1 : self.totalItemsCount - 1;
     NSInteger curIndex = self.index;
     NSInteger nextIndex = self.index + 1 < self.totalItemsCount ? self.index + 1 : 0;
+    NSInteger nextnextIndex = nextIndex + 1 < self.totalItemsCount ? nextIndex + 1 : 0;
     
-    UIView *preContainerView = self.containerViews[0];
-    UIView *centerContainerView = self.containerViews[1];
-    UIView *nextContainerView = self.containerViews[2];
+    UIView *prepreContainerView = self.containerViews[0];
+    UIView *preContainerView = self.containerViews[1];
+    UIView *centerContainerView = self.containerViews[2];
+    UIView *nextContainerView = self.containerViews[3];
+    UIView *nextnextContainerView = self.containerViews[4];
     
     if ([self.delegate respondsToSelector:@selector(recycleScrollView:cachedView:forRowAtIndex:)]) {
+        UIView *prepreSubView = [self.delegate recycleScrollView:self cachedView:prepreContainerView.subviews.firstObject forRowAtIndex:prepreIndex];
         UIView *preSubView = [self.delegate recycleScrollView:self cachedView:preContainerView.subviews.firstObject forRowAtIndex:preIndex];
         UIView *curSubView = [self.delegate recycleScrollView:self cachedView:centerContainerView.subviews.firstObject forRowAtIndex:curIndex];
         UIView *nextSubView = [self.delegate recycleScrollView:self cachedView:nextContainerView.subviews.firstObject forRowAtIndex:nextIndex];
+        UIView *nextnextSubView = [self.delegate recycleScrollView:self cachedView:nextnextContainerView.subviews.firstObject forRowAtIndex:nextnextIndex];
         
-        nextSubView.frame = self.bounds;
+        prepreSubView.frame = self.bounds;
+        preSubView.frame = self.bounds;
         curSubView.frame = self.bounds;
         nextSubView.frame = self.bounds;
+        nextnextSubView.frame = self.bounds;
         
+        [prepreContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
         [preContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
         [centerContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
         [nextContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
+        [nextnextContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
         
+        [prepreContainerView addSubview:prepreSubView];
         [preContainerView addSubview:preSubView];
         [centerContainerView addSubview:curSubView];
         [nextContainerView addSubview:nextSubView];
+        [nextnextContainerView addSubview:nextnextSubView];
     }
     
     if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
-        self.scrollView.contentOffset = CGPointMake(0, self.bounds.size.height);
+        self.scrollView.contentOffset = CGPointMake(0, self.bounds.size.height * 2);
     } else if (self.direction == KLRecycleScrollViewDirectionFromLeftToRight) {
-        self.scrollView.contentOffset = CGPointMake(self.bounds.size.width, 0);
+        self.scrollView.contentOffset = CGPointMake(self.bounds.size.width * 2, 0);
     } else {
-        self.scrollView.contentOffset = CGPointMake(0, self.bounds.size.height);
+        self.scrollView.contentOffset = CGPointMake(0, self.bounds.size.height * 2);
     }
     
     if (!self.timer) {
@@ -155,11 +167,11 @@
 - (void)fireTimer {
     [UIView animateWithDuration:0.75 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
         if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
-            [self.scrollView setContentOffset:CGPointMake(0, self.bounds.size.height * 2) animated:NO];
+            [self.scrollView setContentOffset:CGPointMake(0, self.bounds.size.height * 3) animated:NO];
         } else if (self.direction == KLRecycleScrollViewDirectionFromLeftToRight) {
-            [self.scrollView setContentOffset:CGPointMake(self.bounds.size.width * 2, 0) animated:NO];
+            [self.scrollView setContentOffset:CGPointMake(self.bounds.size.width * 3, 0) animated:NO];
         } else {
-            [self.scrollView setContentOffset:CGPointMake(0, self.bounds.size.height * 2) animated:NO];
+            [self.scrollView setContentOffset:CGPointMake(0, self.bounds.size.height * 3) animated:NO];
         }
     } completion:^(BOOL finished) {
         [self reloadSubViews];
@@ -209,6 +221,7 @@
 - (UIScrollView *)scrollView {
     if (!_scrollView) {
         _scrollView = [UIScrollView new];
+//        _scrollView.pagingEnabled = YES;
         _scrollView.bounces = NO;
         _scrollView.showsHorizontalScrollIndicator = NO;
         _scrollView.showsVerticalScrollIndicator = NO;
