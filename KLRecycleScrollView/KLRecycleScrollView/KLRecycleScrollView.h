@@ -27,6 +27,9 @@ typedef NS_ENUM(NSInteger, KLRecycleScrollViewDirection) {
 
 @property (nonatomic, weak) id<KLRecycleScrollViewDelegate> delegate;
 
+// 滚动间隔时间，默认值是 3.5
+@property (nonatomic, assign) CGFloat scrollInterval;
+
 - (void)reloadData:(NSInteger)totalItemsCount;
 
 @end

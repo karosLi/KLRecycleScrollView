@@ -28,6 +28,7 @@
 - (instancetype)initWithFrame:(CGRect)frame direction:(KLRecycleScrollViewDirection)direction {
     self = [super initWithFrame:frame];
     self.direction = direction;
+    self.scrollInterval = 3.5;
     [self setupView];
     
     return self;
@@ -167,7 +168,7 @@
 }
 
 - (void)startTimer {
-    self.timer = [NSTimer timerWithTimeInterval:3.5 target:self selector:@selector(fireTimer) userInfo:nil repeats:NO];
+    self.timer = [NSTimer timerWithTimeInterval:self.scrollInterval target:self selector:@selector(fireTimer) userInfo:nil repeats:NO];
     [[NSRunLoop mainRunLoop] addTimer:self.timer forMode:NSRunLoopCommonModes];
 }
 
