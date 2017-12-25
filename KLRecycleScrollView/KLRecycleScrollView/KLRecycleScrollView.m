@@ -121,18 +121,18 @@
     UIView *centerContainerView = self.containerViews[1];
     UIView *nextContainerView = self.containerViews[2];
     
-    [preContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
-    [centerContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
-    [nextContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
-    
-    if ([self.delegate respondsToSelector:@selector(recycleScrollView:viewForRowAtIndex:)]) {
-        UIView *preSubView = [self.delegate recycleScrollView:self viewForRowAtIndex:preIndex];
-        UIView *curSubView = [self.delegate recycleScrollView:self viewForRowAtIndex:curIndex];
-        UIView *nextSubView = [self.delegate recycleScrollView:self viewForRowAtIndex:nextIndex];
+    if ([self.delegate respondsToSelector:@selector(recycleScrollView:cachedView:forRowAtIndex:)]) {
+        UIView *preSubView = [self.delegate recycleScrollView:self cachedView:preContainerView.subviews.firstObject forRowAtIndex:preIndex];
+        UIView *curSubView = [self.delegate recycleScrollView:self cachedView:centerContainerView.subviews.firstObject forRowAtIndex:curIndex];
+        UIView *nextSubView = [self.delegate recycleScrollView:self cachedView:nextContainerView.subviews.firstObject forRowAtIndex:nextIndex];
         
         nextSubView.frame = self.bounds;
         curSubView.frame = self.bounds;
         nextSubView.frame = self.bounds;
+        
+        [preContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
+        [centerContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
+        [nextContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
         
         [preContainerView addSubview:preSubView];
         [centerContainerView addSubview:curSubView];
@@ -170,6 +170,12 @@
 - (void)startTimer {
     self.timer = [NSTimer timerWithTimeInterval:self.scrollInterval target:self selector:@selector(fireTimer) userInfo:nil repeats:NO];
     [[NSRunLoop mainRunLoop] addTimer:self.timer forMode:NSRunLoopCommonModes];
+}
+
+#pragma mark - override
+- (void)setClipsToBounds:(BOOL)clipsToBounds {
+    [super setClipsToBounds:clipsToBounds];
+    self.scrollView.clipsToBounds = clipsToBounds;
 }
 
 #pragma mark - gesture

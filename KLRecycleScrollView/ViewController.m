@@ -41,17 +41,31 @@
     self.hmessage = [[KLRecycleScrollView alloc] initWithFrame:CGRectMake(20, 400, 200, 50) direction:KLRecycleScrollViewDirectionFromLeftToRight];
     self.hmessage.delegate = self;
     self.hmessage.scrollInterval = 2;
+    self.hmessage.clipsToBounds = NO;
     self.hmessage.backgroundColor = [UIColor colorWithWhite:0 alpha:0.4];
     
     [self.view addSubview:self.hmessage];
     [self.hmessage reloadData:self.datas.count];
 }
 
-- (UIView *)recycleScrollView:(KLRecycleScrollView *)recycleScrollView viewForRowAtIndex:(NSInteger)index {
-    UILabel *label = [UILabel new];
-    label.text = self.datas[index];
-    label.textAlignment = NSTextAlignmentCenter;
+- (UIView *)recycleScrollView:(KLRecycleScrollView *)recycleScrollView cachedView:(UIView *)cachedView forRowAtIndex:(NSInteger)index {
+    UILabel *label;
     
+    if ([cachedView isKindOfClass:[UILabel class]]) {
+        label = (UILabel *)cachedView;
+        label.text = self.datas[index];
+    } else {
+        label = [UILabel new];
+        label.text = self.datas[index];
+        label.textAlignment = NSTextAlignmentCenter;
+    }
+    
+    if (index % 2 == 0) {
+        label.backgroundColor = [UIColor redColor];
+    } else {
+        label.backgroundColor = [UIColor blueColor];
+    }
+
     return label;
 }
 

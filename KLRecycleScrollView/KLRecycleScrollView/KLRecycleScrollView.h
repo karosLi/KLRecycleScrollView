@@ -16,7 +16,7 @@ typedef NS_ENUM(NSInteger, KLRecycleScrollViewDirection) {
 @class KLRecycleScrollView;
 @protocol KLRecycleScrollViewDelegate <NSObject>
 
-- (UIView *)recycleScrollView:(KLRecycleScrollView *)recycleScrollView viewForRowAtIndex:(NSInteger)index;
+- (UIView *)recycleScrollView:(KLRecycleScrollView *)recycleScrollView cachedView:(UIView *)cachedView forRowAtIndex:(NSInteger)index;
 - (void)recycleScrollView:(KLRecycleScrollView *)recycleScrollView didSelectRowAtIndex:(NSInteger)index;
 
 @end
