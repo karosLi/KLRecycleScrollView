@@ -421,6 +421,10 @@
     [self addSubview:self.scrollView];
 }
 
+- (void)dealloc {
+    [self stopTimer];
+}
+
 #pragma mark - public methods
 - (void)reloadData:(NSInteger)totalItemsCount {
     self.totalItemsCount = totalItemsCount;
