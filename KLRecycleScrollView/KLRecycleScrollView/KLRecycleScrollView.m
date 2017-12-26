@@ -261,7 +261,7 @@
     
     // remove labels that have fallen off right edge
     lastView = [_visibleViews lastObject];
-    while ([lastView frame].origin.x > maximumVisibleX) {
+    while ([lastView frame].origin.x > maximumVisibleX + CGRectGetWidth(lastView.frame)) {
         [lastView removeFromSuperview];
         [_visibleViews removeLastObject];
         lastView = [_visibleViews lastObject];
@@ -274,7 +274,7 @@
     
     // remove labels that have fallen off left edge
     firstView = _visibleViews[0];
-    while (CGRectGetMaxX([firstView frame]) < minimumVisibleX) {
+    while (CGRectGetMaxX([firstView frame]) < minimumVisibleX - CGRectGetWidth(firstView.frame)) {
         [firstView removeFromSuperview];
         [_visibleViews removeObjectAtIndex:0];
         firstView = _visibleViews[0];
@@ -367,7 +367,7 @@
     
     // remove labels that have fallen off right edge
     lastView = [_visibleViews lastObject];
-    while ([lastView frame].origin.y > maximumVisibleY) {
+    while ([lastView frame].origin.y > maximumVisibleY + CGRectGetHeight(lastView.frame)) {
         [lastView removeFromSuperview];
         [_visibleViews removeLastObject];
         lastView = [_visibleViews lastObject];
@@ -380,7 +380,7 @@
     
     // remove labels that have fallen off left edge
     firstView = _visibleViews[0];
-    while (CGRectGetMaxY([firstView frame]) < minimumVisibleY) {
+    while (CGRectGetMaxY([firstView frame]) < minimumVisibleY - CGRectGetHeight(firstView.frame)) {
         [firstView removeFromSuperview];
         [_visibleViews removeObjectAtIndex:0];
         firstView = _visibleViews[0];
@@ -579,7 +579,9 @@
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
-    [self stopTimer];
+    if (scrollView == self.scrollView) {
+        [self stopTimer];
+    }
 }
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
