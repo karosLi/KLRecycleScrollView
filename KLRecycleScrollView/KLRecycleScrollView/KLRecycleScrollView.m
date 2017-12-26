@@ -236,8 +236,6 @@
 @interface KLRecycleScrollView() <UIScrollViewDelegate, KLInfiniteScrollViewDelegate>
 
 @property (strong, nonatomic) KLInfiniteScrollView *scrollView;
-@property (nonatomic, assign) KLRecycleScrollViewDirection direction;
-
 @property (strong, nonatomic) NSMutableArray *containerViews;
 
 @property (assign, nonatomic) NSInteger totalItemsCount;
@@ -247,19 +245,10 @@
 
 @implementation KLRecycleScrollView
 
-- (instancetype)initWithFrame:(CGRect)frame direction:(KLRecycleScrollViewDirection)direction {
-    self = [super initWithFrame:frame];
-    self.direction = direction;
-    self.scrollInterval = 3.5;
-    [self setupView];
-    
-    return self;
-}
-
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
-    
-    @throw [NSException exceptionWithName:@"KLRecycleScrollView" reason:@"Please use method initWithFrame:direction: to initialize object" userInfo:nil];
+    self.scrollInterval = 3.5;
+    [self setupView];
     
     return self;
 }

@@ -9,8 +9,9 @@
 #import <UIKit/UIKit.h>
 
 typedef NS_ENUM(NSInteger, KLRecycleScrollViewDirection) {
+    KLRecycleScrollViewDirectionFromLeftToRight,
     KLRecycleScrollViewDirectionFromTopToBottom,
-    KLRecycleScrollViewDirectionFromLeftToRight
+    
 };
 
 @class KLRecycleScrollView;
@@ -23,8 +24,6 @@ typedef NS_ENUM(NSInteger, KLRecycleScrollViewDirection) {
 
 @interface KLRecycleScrollView : UIView
 
-- (instancetype)initWithFrame:(CGRect)frame direction:(KLRecycleScrollViewDirection)direction;
-
 @property (nonatomic, weak) id<KLRecycleScrollViewDelegate> delegate;
 
 // 是否需要分页
@@ -35,6 +34,9 @@ typedef NS_ENUM(NSInteger, KLRecycleScrollViewDirection) {
 
 // 滚动间隔时间，默认值是 3.5, timerEnabled 开启时，才起作用
 @property (nonatomic, assign) CGFloat scrollInterval;
+
+// 定时器自动滚动方向，默认从左到右, timerEnabled 开启时，才起作用
+@property (nonatomic, assign) KLRecycleScrollViewDirection direction;
 
 - (void)reloadData:(NSInteger)totalItemsCount;
 

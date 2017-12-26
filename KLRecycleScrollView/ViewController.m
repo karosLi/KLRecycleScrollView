@@ -31,14 +31,14 @@
     [self.datas addObject:@"6"];
     [self.datas addObject:@"7"];
     
-    self.message = [[KLRecycleScrollView alloc] initWithFrame:CGRectMake(20, 200, 200, 50) direction:KLRecycleScrollViewDirectionFromTopToBottom];
+    self.message = [[KLRecycleScrollView alloc] initWithFrame:CGRectMake(20, 200, 200, 50)];
     self.message.delegate = self;
     self.message.backgroundColor = [UIColor colorWithWhite:0 alpha:0.4];
     
 //    [self.view addSubview:self.message];
 //    [self.message reloadData:self.datas.count];
     
-    self.hmessage = [[KLRecycleScrollView alloc] initWithFrame:CGRectMake(20, 400, 200, 50) direction:KLRecycleScrollViewDirectionFromLeftToRight];
+    self.hmessage = [[KLRecycleScrollView alloc] initWithFrame:CGRectMake(20, 400, 200, 50)];
     self.hmessage.delegate = self;
     self.hmessage.pagingEnabled = YES;
     self.hmessage.timerEnabled = YES;
