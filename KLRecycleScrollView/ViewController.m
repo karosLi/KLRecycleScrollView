@@ -35,30 +35,26 @@
     self.message.delegate = self;
     self.message.backgroundColor = [UIColor colorWithWhite:0 alpha:0.4];
     
-    [self.view addSubview:self.message];
-    [self.message reloadData:self.datas.count];
+//    [self.view addSubview:self.message];
+//    [self.message reloadData:self.datas.count];
     
     self.hmessage = [[KLRecycleScrollView alloc] initWithFrame:CGRectMake(20, 400, 200, 50) direction:KLRecycleScrollViewDirectionFromLeftToRight];
     self.hmessage.delegate = self;
-    self.hmessage.scrollInterval = 2;
-    self.hmessage.clipsToBounds = NO;
+    self.hmessage.pagingEnabled = YES;
+    self.hmessage.timerEnabled = YES;
+    self.hmessage.scrollInterval = 3;
+//    self.hmessage.clipsToBounds = NO;
     self.hmessage.backgroundColor = [UIColor colorWithWhite:0 alpha:0.4];
     
     [self.view addSubview:self.hmessage];
     [self.hmessage reloadData:self.datas.count];
 }
 
-- (UIView *)recycleScrollView:(KLRecycleScrollView *)recycleScrollView cachedView:(UIView *)cachedView forRowAtIndex:(NSInteger)index {
+- (UIView *)recycleScrollView:(KLRecycleScrollView *)recycleScrollView viewForItemAtIndex:(NSInteger)index {
     UILabel *label;
-    
-    if ([cachedView isKindOfClass:[UILabel class]]) {
-        label = (UILabel *)cachedView;
-        label.text = self.datas[index];
-    } else {
-        label = [UILabel new];
-        label.text = self.datas[index];
-        label.textAlignment = NSTextAlignmentCenter;
-    }
+    label = [UILabel new];
+    label.text = self.datas[index];
+    label.textAlignment = NSTextAlignmentCenter;
     
     if (index % 2 == 0) {
         label.backgroundColor = [UIColor redColor];
@@ -69,7 +65,7 @@
     return label;
 }
 
-- (void)recycleScrollView:(KLRecycleScrollView *)recycleScrollView didSelectRowAtIndex:(NSInteger)index {
+- (void)recycleScrollView:(KLRecycleScrollView *)recycleScrollView didSelectView:(UIView *)view forItemAtIndex:(NSInteger)index {
     NSLog(@"tap %@", self.datas[index]);
 }
 

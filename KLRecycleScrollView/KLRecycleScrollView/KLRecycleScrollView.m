@@ -8,17 +8,239 @@
 
 #import "KLRecycleScrollView.h"
 
-@interface KLRecycleScrollView() <UIScrollViewDelegate>
+@class KLInfiniteScrollView;
+@protocol KLInfiniteScrollViewDelegate <NSObject>
 
-@property (strong, nonatomic) UIScrollView *scrollView;
+- (UIView *)infiniteScrollView:(KLInfiniteScrollView *)infiniteScrollView viewForItemAtIndex:(NSInteger)index;
+- (void)infiniteScrollView:(KLInfiniteScrollView *)infiniteScrollView didSelectView:(UIView *)view forItemAtIndex:(NSInteger)index;
+
+@end
+
+@interface KLInfiniteScrollView : UIScrollView
+
+@property (nonatomic, strong, readonly) NSMutableArray *visibleViews;
+@property (nonatomic, weak) id<KLInfiniteScrollViewDelegate> infiniteDelegate;
+
+- (void)reloadData:(NSInteger)numberOfItems;
+
+// 获取子视图距离最左边的距离
+- (CGFloat)getDistanceToLeftEdge:(UIView *)view;
+
+@end
+
+@interface KLInfiniteScrollView ()
+
+@property (nonatomic, strong) NSMutableArray *visibleViews;
+@property (nonatomic, strong) UIView *containerView;
+
+@property (nonatomic, assign) NSInteger numberOfItems;
+@property (nonatomic, assign) NSInteger rightMostVisibleViewIndex;
+@property (nonatomic, assign) NSInteger leftMostVisibleViewIndex;
+
+@end
+
+@implementation KLInfiniteScrollView
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    
+    self.contentSize = CGSizeMake(5000, self.frame.size.height);
+    self.visibleViews = [[NSMutableArray alloc] init];
+    
+    self.containerView = [[UIView alloc] init];
+    self.containerView.frame = CGRectMake(0, 0, self.contentSize.width, self.contentSize.height);
+    [self addSubview:self.containerView];
+    
+    self.bounces = NO;
+    self.showsHorizontalScrollIndicator = NO;
+    self.showsVerticalScrollIndicator = NO;
+    
+    return self;
+}
+
+#pragma mark - public
+- (void)reloadData:(NSInteger)numberOfItems {
+    self.numberOfItems = numberOfItems;
+    [self setNeedsLayout];
+}
+
+- (CGFloat)getDistanceToLeftEdge:(UIView *)view {
+    CGRect visibleBounds = [self convertRect:[self bounds] toView:self.containerView];
+    return CGRectGetMinX(view.frame) - CGRectGetMinX(visibleBounds);
+}
+
+#pragma mark - gesture
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    UIView *hitView;
+    for (UIView *view in self.containerView.subviews) {
+        CGPoint point = [touches.anyObject locationInView:view];
+        BOOL hasHit = [view pointInside:point withEvent:event];
+        if (hasHit) {
+            hitView = view;
+            break;
+        }
+    }
+    
+    if (hitView.tag >= 20000) {
+        NSInteger index = hitView.tag - 20000;
+        if ([self.infiniteDelegate respondsToSelector:@selector(infiniteScrollView:didSelectView:forItemAtIndex:)]) {
+            [self.infiniteDelegate infiniteScrollView:self didSelectView:hitView forItemAtIndex:index];
+        }
+    }
+}
+
+#pragma mark - Layout
+
+// recenter content periodically to achieve impression of infinite scrolling
+- (void)recenterIfNecessary {
+    CGPoint currentOffset = [self contentOffset];
+    CGFloat contentWidth = [self contentSize].width;
+    CGFloat centerOffsetX = (contentWidth - [self bounds].size.width) / 2.0;
+    CGFloat distanceFromCenter = fabs(currentOffset.x - centerOffsetX);
+    
+    if (distanceFromCenter > (contentWidth / 4.0)) {
+        self.contentOffset = CGPointMake(centerOffsetX, currentOffset.y);
+        
+        // move content by the same amount so it appears to stay still
+        for (UIView *label in self.visibleViews) {
+            CGPoint center = [self.containerView convertPoint:label.center toView:self];
+            center.x += (centerOffsetX - currentOffset.x);
+            label.center = [self convertPoint:center toView:self.containerView];
+        }
+    }
+}
+
+- (void)layoutSubviews {
+    if (self.numberOfItems > 0) {
+        [self recenterIfNecessary];
+        
+        // tile content in visible bounds
+        CGRect visibleBounds = [self convertRect:[self bounds] toView:self.containerView];
+        CGFloat minimumVisibleX = CGRectGetMinX(visibleBounds);
+        CGFloat maximumVisibleX = CGRectGetMaxX(visibleBounds);
+        
+        [self tileViewsFromMinX:minimumVisibleX toMaxX:maximumVisibleX];
+    }
+    
+    [super layoutSubviews];
+}
+
+#pragma mark - View Tiling
+
+- (CGFloat)placeNewViewOnRight:(CGFloat)rightEdge {
+    _rightMostVisibleViewIndex++;
+    if (_rightMostVisibleViewIndex == self.numberOfItems) {
+        _rightMostVisibleViewIndex = 0;
+    }
+    
+    UIView *view;
+    if ([self.infiniteDelegate respondsToSelector:@selector(infiniteScrollView:viewForItemAtIndex:)]) {
+        view = [self.infiniteDelegate infiniteScrollView:self viewForItemAtIndex:_rightMostVisibleViewIndex];
+    }
+    
+    if (!view) {
+        view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.bounds.size.width, self.bounds.size.height)];
+    }
+    
+    view.tag = 20000 + _rightMostVisibleViewIndex;
+    [_containerView addSubview:view];
+    [_visibleViews addObject:view]; // add rightmost label at the end of the array
+    
+    CGRect frame = [view frame];
+    frame.origin.x = rightEdge;
+    frame.origin.y = 0;
+    [view setFrame:frame];
+    return CGRectGetMaxX(frame);
+}
+
+- (CGFloat)placeNewViewOnLeft:(CGFloat)leftEdge {
+    _leftMostVisibleViewIndex--;
+    if (_leftMostVisibleViewIndex < 0) {
+        _leftMostVisibleViewIndex = self.numberOfItems - 1;
+    }
+
+    UIView *view;
+    if ([self.infiniteDelegate respondsToSelector:@selector(infiniteScrollView:viewForItemAtIndex:)]) {
+        view = [self.infiniteDelegate infiniteScrollView:self viewForItemAtIndex:_leftMostVisibleViewIndex];
+    }
+    
+    if (!view) {
+        view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.bounds.size.width, self.bounds.size.height)];
+    }
+    
+    view.tag = 20000 + _leftMostVisibleViewIndex;
+    [_containerView addSubview:view];
+    [_visibleViews insertObject:view atIndex:0]; // add leftmost label at the beginning of the array
+    
+    CGRect frame = [view frame];
+    frame.origin.x = leftEdge - frame.size.width;
+    frame.origin.y = 0;
+    [view setFrame:frame];
+    
+    return CGRectGetMinX(frame);
+}
+
+- (void)tileViewsFromMinX:(CGFloat)minimumVisibleX toMaxX:(CGFloat)maximumVisibleX {
+    // the upcoming tiling logic depends on there already being at least one label in the visibleLabels array, so
+    // to kick off the tiling we need to make sure there's at least one label
+    if ([_visibleViews count] == 0) {
+        _rightMostVisibleViewIndex = -1;
+        _leftMostVisibleViewIndex = 0;
+        [self placeNewViewOnRight:minimumVisibleX];
+    }
+    
+    // add labels that are missing on right side
+    UIView *lastView = [_visibleViews lastObject];
+    CGFloat rightEdge = CGRectGetMaxX([lastView frame]);
+    
+    while (rightEdge < maximumVisibleX) {
+        rightEdge = [self placeNewViewOnRight:rightEdge];
+    }
+    
+    // add labels that are missing on left side
+    UIView *firstView = _visibleViews[0];
+    CGFloat leftEdge = CGRectGetMinX([firstView frame]);
+    while (leftEdge > minimumVisibleX) {
+        leftEdge = [self placeNewViewOnLeft:leftEdge];
+    }
+    
+    // remove labels that have fallen off right edge
+    lastView = [_visibleViews lastObject];
+    while ([lastView frame].origin.x > maximumVisibleX) {
+        [lastView removeFromSuperview];
+        [_visibleViews removeLastObject];
+        lastView = [_visibleViews lastObject];
+        
+        _rightMostVisibleViewIndex--;
+        if (_rightMostVisibleViewIndex < 0) {
+            _rightMostVisibleViewIndex = self.numberOfItems - 1;
+        }
+    }
+    
+    // remove labels that have fallen off left edge
+    firstView = _visibleViews[0];
+    while (CGRectGetMaxX([firstView frame]) < minimumVisibleX) {
+        [firstView removeFromSuperview];
+        [_visibleViews removeObjectAtIndex:0];
+        firstView = _visibleViews[0];
+        
+        _leftMostVisibleViewIndex++;
+        if (_leftMostVisibleViewIndex == self.numberOfItems) {
+            _leftMostVisibleViewIndex = 0;
+        }
+    }
+}
+
+@end
+
+@interface KLRecycleScrollView() <UIScrollViewDelegate, KLInfiniteScrollViewDelegate>
+
+@property (strong, nonatomic) KLInfiniteScrollView *scrollView;
 @property (nonatomic, assign) KLRecycleScrollViewDirection direction;
 
 @property (strong, nonatomic) NSMutableArray *containerViews;
-@property (strong, nonatomic) NSArray *imgs;
-@property (strong, nonatomic) NSArray *urls;
 
 @property (assign, nonatomic) NSInteger totalItemsCount;
-@property (assign, nonatomic) NSInteger index;
 @property (strong, nonatomic) NSTimer *timer;
 
 @end
@@ -43,145 +265,74 @@
 }
 
 - (void)setupView {
-    self.scrollView.frame = self.bounds;
+    self.scrollView = [[KLInfiniteScrollView alloc] initWithFrame:self.bounds];
+    self.scrollView.delegate = self;
+    self.scrollView.infiniteDelegate = self;
     [self addSubview:self.scrollView];
-    
-    self.containerViews = [NSMutableArray array];
-    for (NSInteger i = 0; i < 5; i++) {
-        UIView *containerView = [UIView new];
-        
-        if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
-            containerView.frame = CGRectMake(0, self.bounds.size.height * i, self.bounds.size.width, self.bounds.size.height);
-        } else if (self.direction == KLRecycleScrollViewDirectionFromLeftToRight) {
-            containerView.frame = CGRectMake(self.bounds.size.width * i, 0, self.bounds.size.width, self.bounds.size.height);
-        } else {
-            containerView.frame = CGRectMake(0, self.bounds.size.height * i, self.bounds.size.width, self.bounds.size.height);
-        }
-        
-        [self.scrollView addSubview:containerView];
-        [self.containerViews addObject:containerView];
-    }
-    
-    if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
-        [self.scrollView setContentSize:CGSizeMake(self.bounds.size.width, self.bounds.size.height * 5)];
-        self.scrollView.contentOffset = CGPointMake(0, self.bounds.size.height);
-    } else if (self.direction == KLRecycleScrollViewDirectionFromLeftToRight) {
-        [self.scrollView setContentSize:CGSizeMake(self.bounds.size.width * 5, self.bounds.size.height)];
-        self.scrollView.contentOffset = CGPointMake(self.bounds.size.width, 0);
-    } else {
-        [self.scrollView setContentSize:CGSizeMake(self.bounds.size.width, self.bounds.size.height * 5)];
-        self.scrollView.contentOffset = CGPointMake(0, self.bounds.size.height);
-    }
-    
-    [self.scrollView addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(onTapContainerView:)]];
 }
 
 #pragma mark - public methods
 - (void)reloadData:(NSInteger)totalItemsCount {
     self.totalItemsCount = totalItemsCount;
-    [self reloadSubViews];
+    [self.scrollView reloadData:totalItemsCount];
+    
+    [self startTimer];
 }
 
-#pragma mark - private methods
-- (void)reloadSubViews {
-    CGFloat offset;
-    CGFloat pageWidth;
-    
-    if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
-        offset = self.scrollView.contentOffset.y;
-        pageWidth = self.bounds.size.height;
-    } else if (self.direction == KLRecycleScrollViewDirectionFromLeftToRight) {
-        offset = self.scrollView.contentOffset.x;
-        pageWidth = self.bounds.size.width;
-    } else {
-        offset = self.scrollView.contentOffset.y;
-        pageWidth = self.bounds.size.height;
-    }
-    
-    if (offset > pageWidth) { // 向右
-        self.index++;
-    } else if (offset < pageWidth) { // 向左
-        self.index--;
-    } else {
-        
-    }
-    
-    // 修正当前索引
-    if (self.index < 0) {
-        self.index = self.totalItemsCount - 1;
-    } else if (self.index > self.totalItemsCount - 1) {
-        self.index = 0;
-    }
-    
-    NSInteger preIndex = self.index - 1 >= 0 ? self.index - 1 : self.totalItemsCount - 1;
-    NSInteger prepreIndex = preIndex - 1 >= 0 ? preIndex - 1 : self.totalItemsCount - 1;
-    NSInteger curIndex = self.index;
-    NSInteger nextIndex = self.index + 1 < self.totalItemsCount ? self.index + 1 : 0;
-    NSInteger nextnextIndex = nextIndex + 1 < self.totalItemsCount ? nextIndex + 1 : 0;
-    
-    UIView *prepreContainerView = self.containerViews[0];
-    UIView *preContainerView = self.containerViews[1];
-    UIView *centerContainerView = self.containerViews[2];
-    UIView *nextContainerView = self.containerViews[3];
-    UIView *nextnextContainerView = self.containerViews[4];
-    
-    if ([self.delegate respondsToSelector:@selector(recycleScrollView:cachedView:forRowAtIndex:)]) {
-        UIView *prepreSubView = [self.delegate recycleScrollView:self cachedView:prepreContainerView.subviews.firstObject forRowAtIndex:prepreIndex];
-        UIView *preSubView = [self.delegate recycleScrollView:self cachedView:preContainerView.subviews.firstObject forRowAtIndex:preIndex];
-        UIView *curSubView = [self.delegate recycleScrollView:self cachedView:centerContainerView.subviews.firstObject forRowAtIndex:curIndex];
-        UIView *nextSubView = [self.delegate recycleScrollView:self cachedView:nextContainerView.subviews.firstObject forRowAtIndex:nextIndex];
-        UIView *nextnextSubView = [self.delegate recycleScrollView:self cachedView:nextnextContainerView.subviews.firstObject forRowAtIndex:nextnextIndex];
-        
-        prepreSubView.frame = self.bounds;
-        preSubView.frame = self.bounds;
-        curSubView.frame = self.bounds;
-        nextSubView.frame = self.bounds;
-        nextnextSubView.frame = self.bounds;
-        
-        [prepreContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
-        [preContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
-        [centerContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
-        [nextContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
-        [nextnextContainerView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
-        
-        [prepreContainerView addSubview:prepreSubView];
-        [preContainerView addSubview:preSubView];
-        [centerContainerView addSubview:curSubView];
-        [nextContainerView addSubview:nextSubView];
-        [nextnextContainerView addSubview:nextnextSubView];
-    }
-    
-    if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
-        self.scrollView.contentOffset = CGPointMake(0, self.bounds.size.height * 2);
-    } else if (self.direction == KLRecycleScrollViewDirectionFromLeftToRight) {
-        self.scrollView.contentOffset = CGPointMake(self.bounds.size.width * 2, 0);
-    } else {
-        self.scrollView.contentOffset = CGPointMake(0, self.bounds.size.height * 2);
-    }
-    
-    if (!self.timer) {
-        [self startTimer];
-    }
+- (void)setPagingEnabled:(BOOL)pagingEnabled {
+    _pagingEnabled = pagingEnabled;
+    self.scrollView.decelerationRate = pagingEnabled ? UIScrollViewDecelerationRateFast : UIScrollViewDecelerationRateNormal;
 }
 
+#pragma mark - timer
 - (void)fireTimer {
     [UIView animateWithDuration:0.75 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
-        if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
-            [self.scrollView setContentOffset:CGPointMake(0, self.bounds.size.height * 3) animated:NO];
-        } else if (self.direction == KLRecycleScrollViewDirectionFromLeftToRight) {
-            [self.scrollView setContentOffset:CGPointMake(self.bounds.size.width * 3, 0) animated:NO];
-        } else {
-            [self.scrollView setContentOffset:CGPointMake(0, self.bounds.size.height * 3) animated:NO];
-        }
+//        if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
+//            [self.scrollView setContentOffset:CGPointMake(0, self.bounds.size.height * 3) animated:NO];
+//        } else if (self.direction == KLRecycleScrollViewDirectionFromLeftToRight) {
+//            [self.scrollView setContentOffset:CGPointMake(self.bounds.size.width * 3, 0) animated:NO];
+//        } else {
+//            [self.scrollView setContentOffset:CGPointMake(0, self.bounds.size.height * 3) animated:NO];
+//        }
+        CGPoint contentOffset = self.scrollView.contentOffset;
+        [self.scrollView setContentOffset:CGPointMake(contentOffset.x + self.bounds.size.width, 0) animated:NO];
     } completion:^(BOOL finished) {
-        [self reloadSubViews];
-        [self startTimer];
     }];
 }
 
-- (void)startTimer {
-    self.timer = [NSTimer timerWithTimeInterval:self.scrollInterval target:self selector:@selector(fireTimer) userInfo:nil repeats:NO];
+- (void)configTimer {
+    self.timer = [NSTimer timerWithTimeInterval:self.scrollInterval target:self selector:@selector(fireTimer) userInfo:nil repeats:YES];
     [[NSRunLoop mainRunLoop] addTimer:self.timer forMode:NSRunLoopCommonModes];
+}
+
+- (void)startTimer {
+    if (self.timerEnabled && !self.timer) {
+        [self configTimer];
+    }
+}
+
+- (void)stopTimer {
+    if (self.timerEnabled) {
+        [self.timer invalidate];
+        self.timer = nil;
+    }
+}
+
+#pragma mark - KLInfiniteScrollViewDelegate
+- (UIView *)infiniteScrollView:(KLInfiniteScrollView *)infiniteScrollView viewForItemAtIndex:(NSInteger)index {
+    UIView *subview;
+    if ([self.delegate respondsToSelector:@selector(recycleScrollView:viewForItemAtIndex:)]) {
+        subview = [self.delegate recycleScrollView:self viewForItemAtIndex:index];
+    }
+    
+    subview.frame = self.bounds;
+    return subview;
+}
+
+- (void)infiniteScrollView:(KLInfiniteScrollView *)infiniteScrollView didSelectView:(UIView *)view forItemAtIndex:(NSInteger)index {
+    if ([self.delegate respondsToSelector:@selector(recycleScrollView:didSelectView:forItemAtIndex:)]) {
+        [self.delegate recycleScrollView:self didSelectView:view forItemAtIndex:index];
+    }
 }
 
 #pragma mark - override
@@ -190,47 +341,58 @@
     self.scrollView.clipsToBounds = clipsToBounds;
 }
 
-#pragma mark - gesture
-- (void)onTapContainerView:(UIGestureRecognizer *)g {
-    if ([self.delegate respondsToSelector:@selector(recycleScrollView:didSelectRowAtIndex:)]) {
-        [self.delegate recycleScrollView:self didSelectRowAtIndex:self.index];
+#pragma mark - scroll view deleaget
+- (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset {
+    if (self.pagingEnabled) {
+        NSInteger width = self.bounds.size.width;
+        NSInteger extra = 0;
+        if (velocity.x != 0) {
+            extra = velocity.x > 0 ? width : -width;
+        }
+        
+        CGPoint targetOffset = [self getLeftestViewToLeftEdge];
+        targetContentOffset->x = targetOffset.x + extra;
+        targetContentOffset->y = targetOffset.y;
     }
 }
 
-#pragma mark - scroll view deleaget
+- (CGPoint)getLeftestViewToLeftEdge {
+    CGPoint offset = self.scrollView.contentOffset;
+
+    __block CGFloat minDistanceFromLeftEdge = MAXFLOAT;
+    __block UIView *minDistanceFromLeftEdgeView;
+
+    __weak typeof(self) weakSelf = self;
+    [self.scrollView.visibleViews enumerateObjectsUsingBlock:^(id  _Nonnull view, NSUInteger idx, BOOL * _Nonnull stop) {
+        CGFloat distanceToLeftEdge = [weakSelf.scrollView getDistanceToLeftEdge:view];
+        if (distanceToLeftEdge < fabs(minDistanceFromLeftEdge)) {
+            minDistanceFromLeftEdge = distanceToLeftEdge;
+            minDistanceFromLeftEdgeView = view;
+        }
+    }];
+
+    CGFloat targetX = offset.x + minDistanceFromLeftEdge;
+    CGPoint targetOffset = CGPointMake(targetX, offset.y);
+
+    return targetOffset;
+}
+
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
-    [self.timer invalidate];
-    self.timer = nil;
+    [self stopTimer];
 }
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
     if (scrollView == self.scrollView) {
         if (!decelerate) {
-            [self reloadSubViews];
+            [self startTimer];
         }
     }
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
     if (scrollView == self.scrollView) {
-        [self reloadSubViews];
+        [self startTimer];
     }
 }
-
-#pragma mark - getter
-- (UIScrollView *)scrollView {
-    if (!_scrollView) {
-        _scrollView = [UIScrollView new];
-//        _scrollView.pagingEnabled = YES;
-        _scrollView.bounces = NO;
-        _scrollView.showsHorizontalScrollIndicator = NO;
-        _scrollView.showsVerticalScrollIndicator = NO;
-        _scrollView.delegate = self;
-    }
-    
-    return _scrollView;
-}
-
-
 
 @end

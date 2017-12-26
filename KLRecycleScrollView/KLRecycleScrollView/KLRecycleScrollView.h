@@ -16,8 +16,8 @@ typedef NS_ENUM(NSInteger, KLRecycleScrollViewDirection) {
 @class KLRecycleScrollView;
 @protocol KLRecycleScrollViewDelegate <NSObject>
 
-- (UIView *)recycleScrollView:(KLRecycleScrollView *)recycleScrollView cachedView:(UIView *)cachedView forRowAtIndex:(NSInteger)index;
-- (void)recycleScrollView:(KLRecycleScrollView *)recycleScrollView didSelectRowAtIndex:(NSInteger)index;
+- (UIView *)recycleScrollView:(KLRecycleScrollView *)recycleScrollView viewForItemAtIndex:(NSInteger)index;
+- (void)recycleScrollView:(KLRecycleScrollView *)recycleScrollView didSelectView:(UIView *)view forItemAtIndex:(NSInteger)index;
 
 @end
 
@@ -27,7 +27,13 @@ typedef NS_ENUM(NSInteger, KLRecycleScrollViewDirection) {
 
 @property (nonatomic, weak) id<KLRecycleScrollViewDelegate> delegate;
 
-// 滚动间隔时间，默认值是 3.5
+// 是否需要分页
+@property (nonatomic, assign) BOOL pagingEnabled;
+
+// 是否需要开启定时器
+@property (nonatomic, assign) BOOL timerEnabled;
+
+// 滚动间隔时间，默认值是 3.5, timerEnabled 开启时，才起作用
 @property (nonatomic, assign) CGFloat scrollInterval;
 
 - (void)reloadData:(NSInteger)totalItemsCount;
