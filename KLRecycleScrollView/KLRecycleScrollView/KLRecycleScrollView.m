@@ -21,10 +21,16 @@
 @property (nonatomic, strong, readonly) NSMutableArray *visibleViews;
 @property (nonatomic, weak) id<KLInfiniteScrollViewDelegate> infiniteDelegate;
 
+// 是否是水平布局
+@property (nonatomic, assign) BOOL isHorLayout;
+
 - (void)reloadData:(NSInteger)numberOfItems;
 
 // 获取子视图距离最左边的距离
 - (CGFloat)getDistanceToLeftEdge:(UIView *)view;
+
+// 获取子视图距离最上边的距离
+- (CGFloat)getDistanceToTopEdge:(UIView *)view;
 
 @end
 
@@ -36,6 +42,8 @@
 @property (nonatomic, assign) NSInteger numberOfItems;
 @property (nonatomic, assign) NSInteger rightMostVisibleViewIndex;
 @property (nonatomic, assign) NSInteger leftMostVisibleViewIndex;
+@property (nonatomic, assign) NSInteger topMostVisibleViewIndex;
+@property (nonatomic, assign) NSInteger bottomMostVisibleViewIndex;
 
 @end
 
@@ -43,7 +51,7 @@
 
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
-    
+    self.isHorLayout = YES;
     self.contentSize = CGSizeMake(5000, self.frame.size.height);
     self.visibleViews = [[NSMutableArray alloc] init];
     
@@ -64,9 +72,26 @@
     [self setNeedsLayout];
 }
 
+- (void)setIsHorLayout:(BOOL)isHorLayout {
+    _isHorLayout = isHorLayout;
+    [self.visibleViews removeAllObjects];
+    if (isHorLayout) {
+        self.contentSize = CGSizeMake(5000, self.frame.size.height);
+        self.containerView.frame = CGRectMake(0, 0, self.contentSize.width, self.contentSize.height);
+    } else {
+        self.contentSize = CGSizeMake(self.frame.size.width, 5000);
+        self.containerView.frame = CGRectMake(0, 0, self.contentSize.width, self.contentSize.height);
+    }
+}
+
 - (CGFloat)getDistanceToLeftEdge:(UIView *)view {
     CGRect visibleBounds = [self convertRect:[self bounds] toView:self.containerView];
     return CGRectGetMinX(view.frame) - CGRectGetMinX(visibleBounds);
+}
+
+- (CGFloat)getDistanceToTopEdge:(UIView *)view {
+    CGRect visibleBounds = [self convertRect:[self bounds] toView:self.containerView];
+    return CGRectGetMinY(view.frame) - CGRectGetMinY(visibleBounds);
 }
 
 #pragma mark - gesture
@@ -92,7 +117,7 @@
 #pragma mark - Layout
 
 // recenter content periodically to achieve impression of infinite scrolling
-- (void)recenterIfNecessary {
+- (void)recenterInHorIfNecessary {
     CGPoint currentOffset = [self contentOffset];
     CGFloat contentWidth = [self contentSize].width;
     CGFloat centerOffsetX = (contentWidth - [self bounds].size.width) / 2.0;
@@ -110,22 +135,52 @@
     }
 }
 
+- (void)recenterInVerIfNecessary {
+    CGPoint currentOffset = [self contentOffset];
+    CGFloat contentHeight = [self contentSize].height;
+    CGFloat centerOffsetY = (contentHeight - [self bounds].size.height) / 2.0;
+    CGFloat distanceFromCenter = fabs(currentOffset.y - centerOffsetY);
+    
+    if (distanceFromCenter > (contentHeight / 4.0)) {
+        self.contentOffset = CGPointMake(currentOffset.x, centerOffsetY);
+        
+        // move content by the same amount so it appears to stay still
+        for (UIView *label in self.visibleViews) {
+            CGPoint center = [self.containerView convertPoint:label.center toView:self];
+            center.y += (centerOffsetY - currentOffset.y);
+            label.center = [self convertPoint:center toView:self.containerView];
+        }
+    }
+}
+
+
 - (void)layoutSubviews {
     if (self.numberOfItems > 0) {
-        [self recenterIfNecessary];
-        
-        // tile content in visible bounds
-        CGRect visibleBounds = [self convertRect:[self bounds] toView:self.containerView];
-        CGFloat minimumVisibleX = CGRectGetMinX(visibleBounds);
-        CGFloat maximumVisibleX = CGRectGetMaxX(visibleBounds);
-        
-        [self tileViewsFromMinX:minimumVisibleX toMaxX:maximumVisibleX];
+        if (self.isHorLayout) {
+            [self recenterInHorIfNecessary];
+            
+            // tile content in visible bounds
+            CGRect visibleBounds = [self convertRect:[self bounds] toView:self.containerView];
+            CGFloat minimumVisibleX = CGRectGetMinX(visibleBounds);
+            CGFloat maximumVisibleX = CGRectGetMaxX(visibleBounds);
+            
+            [self tileViewsFromMinX:minimumVisibleX toMaxX:maximumVisibleX];
+        } else {
+            [self recenterInVerIfNecessary];
+            
+            // tile content in visible bounds
+            CGRect visibleBounds = [self convertRect:[self bounds] toView:self.containerView];
+            CGFloat minimumVisibleY = CGRectGetMinY(visibleBounds);
+            CGFloat maximumVisibleY = CGRectGetMaxY(visibleBounds);
+            
+            [self tileViewsFromMinY:minimumVisibleY toMaxY:maximumVisibleY];
+        }
     }
     
     [super layoutSubviews];
 }
 
-#pragma mark - View Tiling
+#pragma mark - hor View Tiling
 
 - (CGFloat)placeNewViewOnRight:(CGFloat)rightEdge {
     _rightMostVisibleViewIndex++;
@@ -231,6 +286,112 @@
     }
 }
 
+#pragma mark - ver View Tiling
+
+- (CGFloat)placeNewViewOnBottom:(CGFloat)bottomEdge {
+    _bottomMostVisibleViewIndex++;
+    if (_bottomMostVisibleViewIndex == self.numberOfItems) {
+        _bottomMostVisibleViewIndex = 0;
+    }
+    
+    UIView *view;
+    if ([self.infiniteDelegate respondsToSelector:@selector(infiniteScrollView:viewForItemAtIndex:)]) {
+        view = [self.infiniteDelegate infiniteScrollView:self viewForItemAtIndex:_bottomMostVisibleViewIndex];
+    }
+    
+    if (!view) {
+        view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.bounds.size.width, self.bounds.size.height)];
+    }
+    
+    view.tag = 20000 + _bottomMostVisibleViewIndex;
+    [_containerView addSubview:view];
+    [_visibleViews addObject:view]; // add rightmost label at the end of the array
+    
+    CGRect frame = [view frame];
+    frame.origin.x = 0;
+    frame.origin.y = bottomEdge;
+    [view setFrame:frame];
+    return CGRectGetMaxY(frame);
+}
+
+- (CGFloat)placeNewViewOnTop:(CGFloat)topEdge {
+    _topMostVisibleViewIndex--;
+    if (_topMostVisibleViewIndex < 0) {
+        _topMostVisibleViewIndex = self.numberOfItems - 1;
+    }
+    
+    UIView *view;
+    if ([self.infiniteDelegate respondsToSelector:@selector(infiniteScrollView:viewForItemAtIndex:)]) {
+        view = [self.infiniteDelegate infiniteScrollView:self viewForItemAtIndex:_topMostVisibleViewIndex];
+    }
+    
+    if (!view) {
+        view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.bounds.size.width, self.bounds.size.height)];
+    }
+    
+    view.tag = 20000 + _topMostVisibleViewIndex;
+    [_containerView addSubview:view];
+    [_visibleViews insertObject:view atIndex:0]; // add leftmost label at the beginning of the array
+    
+    CGRect frame = [view frame];
+    frame.origin.x = 0;
+    frame.origin.y = topEdge - frame.size.height;
+    [view setFrame:frame];
+    
+    return CGRectGetMinY(frame);
+}
+
+- (void)tileViewsFromMinY:(CGFloat)minimumVisibleY toMaxY:(CGFloat)maximumVisibleY {
+    // the upcoming tiling logic depends on there already being at least one label in the visibleLabels array, so
+    // to kick off the tiling we need to make sure there's at least one label
+    if ([_visibleViews count] == 0) {
+        _bottomMostVisibleViewIndex = -1;
+        _topMostVisibleViewIndex = 0;
+        [self placeNewViewOnBottom:minimumVisibleY];
+    }
+    
+    // add labels that are missing on right side
+    UIView *lastView = [_visibleViews lastObject];
+    CGFloat bottomEdge = CGRectGetMaxY([lastView frame]);
+    
+    while (bottomEdge < maximumVisibleY) {
+        bottomEdge = [self placeNewViewOnBottom:bottomEdge];
+    }
+    
+    // add labels that are missing on left side
+    UIView *firstView = _visibleViews[0];
+    CGFloat topEdge = CGRectGetMinY([firstView frame]);
+    while (topEdge > minimumVisibleY) {
+        topEdge = [self placeNewViewOnTop:topEdge];
+    }
+    
+    // remove labels that have fallen off right edge
+    lastView = [_visibleViews lastObject];
+    while ([lastView frame].origin.y > maximumVisibleY) {
+        [lastView removeFromSuperview];
+        [_visibleViews removeLastObject];
+        lastView = [_visibleViews lastObject];
+        
+        _bottomMostVisibleViewIndex--;
+        if (_bottomMostVisibleViewIndex < 0) {
+            _bottomMostVisibleViewIndex = self.numberOfItems - 1;
+        }
+    }
+    
+    // remove labels that have fallen off left edge
+    firstView = _visibleViews[0];
+    while (CGRectGetMaxY([firstView frame]) < minimumVisibleY) {
+        [firstView removeFromSuperview];
+        [_visibleViews removeObjectAtIndex:0];
+        firstView = _visibleViews[0];
+        
+        _topMostVisibleViewIndex++;
+        if (_topMostVisibleViewIndex == self.numberOfItems) {
+            _topMostVisibleViewIndex = 0;
+        }
+    }
+}
+
 @end
 
 @interface KLRecycleScrollView() <UIScrollViewDelegate, KLInfiniteScrollViewDelegate>
@@ -273,18 +434,32 @@
     self.scrollView.decelerationRate = pagingEnabled ? UIScrollViewDecelerationRateFast : UIScrollViewDecelerationRateNormal;
 }
 
+- (void)setDirection:(KLRecycleScrollViewDirection)direction {
+    _direction = direction;
+    
+    if (self.direction == KLRecycleScrollViewDirectionLeft || self.direction == KLRecycleScrollViewDirectionRight) {
+        self.scrollView.isHorLayout = YES;
+    } else if (self.direction == KLRecycleScrollViewDirectionTop || self.direction == KLRecycleScrollViewDirectionBottom) {
+        self.scrollView.isHorLayout = NO;
+    }
+}
+
 #pragma mark - timer
 - (void)fireTimer {
     [UIView animateWithDuration:0.75 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
-//        if (self.direction == KLRecycleScrollViewDirectionFromTopToBottom) {
-//            [self.scrollView setContentOffset:CGPointMake(0, self.bounds.size.height * 3) animated:NO];
-//        } else if (self.direction == KLRecycleScrollViewDirectionFromLeftToRight) {
-//            [self.scrollView setContentOffset:CGPointMake(self.bounds.size.width * 3, 0) animated:NO];
-//        } else {
-//            [self.scrollView setContentOffset:CGPointMake(0, self.bounds.size.height * 3) animated:NO];
-//        }
-        CGPoint contentOffset = self.scrollView.contentOffset;
-        [self.scrollView setContentOffset:CGPointMake(contentOffset.x + self.bounds.size.width, 0) animated:NO];
+        if (self.direction == KLRecycleScrollViewDirectionLeft) {
+            CGPoint contentOffset = self.scrollView.contentOffset;
+            [self.scrollView setContentOffset:CGPointMake(contentOffset.x + self.bounds.size.width, 0) animated:NO];
+        } else if (self.direction == KLRecycleScrollViewDirectionRight) {
+            CGPoint contentOffset = self.scrollView.contentOffset;
+            [self.scrollView setContentOffset:CGPointMake(contentOffset.x - self.bounds.size.width, 0) animated:NO];
+        } else if (self.direction == KLRecycleScrollViewDirectionTop) {
+            CGPoint contentOffset = self.scrollView.contentOffset;
+            [self.scrollView setContentOffset:CGPointMake(0, contentOffset.y + self.bounds.size.height) animated:NO];
+        } else if (self.direction == KLRecycleScrollViewDirectionBottom) {
+            CGPoint contentOffset = self.scrollView.contentOffset;
+            [self.scrollView setContentOffset:CGPointMake(0, contentOffset.y - self.bounds.size.height) animated:NO];
+        }
     } completion:^(BOOL finished) {
     }];
 }
@@ -333,15 +508,27 @@
 #pragma mark - scroll view deleaget
 - (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset {
     if (self.pagingEnabled) {
-        NSInteger width = self.bounds.size.width;
-        NSInteger extra = 0;
-        if (velocity.x != 0) {
-            extra = velocity.x > 0 ? width : -width;
+        if (self.direction == KLRecycleScrollViewDirectionLeft || self.direction == KLRecycleScrollViewDirectionRight) {
+            NSInteger width = self.bounds.size.width;
+            NSInteger extra = 0;
+            if (velocity.x != 0) {
+                extra = velocity.x > 0 ? width : -width;
+            }
+            
+            CGPoint targetOffset = [self getLeftestViewToLeftEdge];
+            targetContentOffset->x = targetOffset.x + extra;
+            targetContentOffset->y = targetOffset.y;
+        } else if (self.direction == KLRecycleScrollViewDirectionTop || self.direction == KLRecycleScrollViewDirectionBottom) {
+            NSInteger height = self.bounds.size.height;
+            NSInteger extra = 0;
+            if (velocity.y != 0) {
+                extra = velocity.y > 0 ? height : -height;
+            }
+            
+            CGPoint targetOffset = [self getTopestViewToTopEdge];
+            targetContentOffset->x = targetOffset.x;
+            targetContentOffset->y = targetOffset.y + extra;
         }
-        
-        CGPoint targetOffset = [self getLeftestViewToLeftEdge];
-        targetContentOffset->x = targetOffset.x + extra;
-        targetContentOffset->y = targetOffset.y;
     }
 }
 
@@ -363,6 +550,27 @@
     CGFloat targetX = offset.x + minDistanceFromLeftEdge;
     CGPoint targetOffset = CGPointMake(targetX, offset.y);
 
+    return targetOffset;
+}
+
+- (CGPoint)getTopestViewToTopEdge {
+    CGPoint offset = self.scrollView.contentOffset;
+    
+    __block CGFloat minDistanceFromTopEdge = MAXFLOAT;
+    __block UIView *minDistanceFromTopEdgeView;
+    
+    __weak typeof(self) weakSelf = self;
+    [self.scrollView.visibleViews enumerateObjectsUsingBlock:^(id  _Nonnull view, NSUInteger idx, BOOL * _Nonnull stop) {
+        CGFloat distanceToTopEdge = [weakSelf.scrollView getDistanceToTopEdge:view];
+        if (distanceToTopEdge < fabs(minDistanceFromTopEdge)) {
+            minDistanceFromTopEdge = distanceToTopEdge;
+            minDistanceFromTopEdgeView = view;
+        }
+    }];
+    
+    CGFloat targetY = offset.y + minDistanceFromTopEdge;
+    CGPoint targetOffset = CGPointMake(offset.x, targetY);
+    
     return targetOffset;
 }
 

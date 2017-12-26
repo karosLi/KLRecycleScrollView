@@ -9,9 +9,10 @@
 #import <UIKit/UIKit.h>
 
 typedef NS_ENUM(NSInteger, KLRecycleScrollViewDirection) {
-    KLRecycleScrollViewDirectionFromLeftToRight,
-    KLRecycleScrollViewDirectionFromTopToBottom,
-    
+    KLRecycleScrollViewDirectionLeft,
+    KLRecycleScrollViewDirectionRight,
+    KLRecycleScrollViewDirectionTop,
+    KLRecycleScrollViewDirectionBottom,
 };
 
 @class KLRecycleScrollView;
