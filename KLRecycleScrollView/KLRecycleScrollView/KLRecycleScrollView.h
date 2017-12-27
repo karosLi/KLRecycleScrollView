@@ -18,8 +18,16 @@ typedef NS_ENUM(NSInteger, KLRecycleScrollViewDirection) {
 @class KLRecycleScrollView;
 @protocol KLRecycleScrollViewDelegate <NSObject>
 
+@required
+// 需要代理类每次返回新的视图对象
 - (UIView *)recycleScrollView:(KLRecycleScrollView *)recycleScrollView viewForItemAtIndex:(NSInteger)index;
+
+@optional
+// 当点击视图时，通知代理类点击视图的位置
 - (void)recycleScrollView:(KLRecycleScrollView *)recycleScrollView didSelectView:(UIView *)view forItemAtIndex:(NSInteger)index;
+
+// 当 pagingEnabled 开启时，才会回调该方法
+- (void)recycleScrollView:(KLRecycleScrollView *)recycleScrollView didScrollView:(UIView *)view forItemToIndex:(NSInteger)index;
 
 @end
 

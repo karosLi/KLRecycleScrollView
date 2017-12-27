@@ -27,10 +27,13 @@
 - (void)reloadData:(NSInteger)numberOfItems;
 
 // 获取子视图距离最左边的距离
-- (CGFloat)getDistanceToLeftEdge:(UIView *)view;
+- (CGFloat)getItemViewDistanceToLeftEdge:(UIView *)view;
 
 // 获取子视图距离最上边的距离
-- (CGFloat)getDistanceToTopEdge:(UIView *)view;
+- (CGFloat)getItemViewDistanceToTopEdge:(UIView *)view;
+
+// 获取子视图当前索引
+- (NSInteger)getItemViewIndex:(UIView *)itemView;
 
 @end
 
@@ -84,14 +87,22 @@
     }
 }
 
-- (CGFloat)getDistanceToLeftEdge:(UIView *)view {
+- (CGFloat)getItemViewDistanceToLeftEdge:(UIView *)itemView {
     CGRect visibleBounds = [self convertRect:[self bounds] toView:self.containerView];
-    return CGRectGetMinX(view.frame) - CGRectGetMinX(visibleBounds);
+    return CGRectGetMinX(itemView.frame) - CGRectGetMinX(visibleBounds);
 }
 
-- (CGFloat)getDistanceToTopEdge:(UIView *)view {
+- (CGFloat)getItemViewDistanceToTopEdge:(UIView *)itemView {
     CGRect visibleBounds = [self convertRect:[self bounds] toView:self.containerView];
-    return CGRectGetMinY(view.frame) - CGRectGetMinY(visibleBounds);
+    return CGRectGetMinY(itemView.frame) - CGRectGetMinY(visibleBounds);
+}
+
+- (NSInteger)getItemViewIndex:(UIView *)itemView {
+    if (itemView.tag >= 20000) {
+        return itemView.tag - 20000;
+    }
+    
+    return 0;
 }
 
 #pragma mark - gesture
@@ -155,6 +166,8 @@
 
 
 - (void)layoutSubviews {
+    [super layoutSubviews];
+    
     if (self.numberOfItems > 0) {
         if (self.isHorLayout) {
             [self recenterInHorIfNecessary];
@@ -176,8 +189,6 @@
             [self tileViewsFromMinY:minimumVisibleY toMaxY:maximumVisibleY];
         }
     }
-    
-    [super layoutSubviews];
 }
 
 #pragma mark - hor View Tiling
@@ -243,6 +254,10 @@
         _leftMostVisibleViewIndex = 0;
         [self placeNewViewOnRight:minimumVisibleX];
     }
+    
+    // in order to add more labels
+    minimumVisibleX -= CGRectGetWidth(self.bounds);
+    maximumVisibleX += CGRectGetWidth(self.bounds);
     
     // add labels that are missing on right side
     UIView *lastView = [_visibleViews lastObject];
@@ -350,6 +365,10 @@
         [self placeNewViewOnBottom:minimumVisibleY];
     }
     
+    // in order to add more labels
+    minimumVisibleY -= CGRectGetHeight(self.bounds);
+    maximumVisibleY += CGRectGetHeight(self.bounds);
+    
     // add labels that are missing on right side
     UIView *lastView = [_visibleViews lastObject];
     CGFloat bottomEdge = CGRectGetMaxY([lastView frame]);
@@ -450,22 +469,19 @@
 
 #pragma mark - timer
 - (void)fireTimer {
-    [UIView animateWithDuration:0.75 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
-        if (self.direction == KLRecycleScrollViewDirectionLeft) {
-            CGPoint contentOffset = self.scrollView.contentOffset;
-            [self.scrollView setContentOffset:CGPointMake(contentOffset.x + self.bounds.size.width, 0) animated:NO];
-        } else if (self.direction == KLRecycleScrollViewDirectionRight) {
-            CGPoint contentOffset = self.scrollView.contentOffset;
-            [self.scrollView setContentOffset:CGPointMake(contentOffset.x - self.bounds.size.width, 0) animated:NO];
-        } else if (self.direction == KLRecycleScrollViewDirectionTop) {
-            CGPoint contentOffset = self.scrollView.contentOffset;
-            [self.scrollView setContentOffset:CGPointMake(0, contentOffset.y + self.bounds.size.height) animated:NO];
-        } else if (self.direction == KLRecycleScrollViewDirectionBottom) {
-            CGPoint contentOffset = self.scrollView.contentOffset;
-            [self.scrollView setContentOffset:CGPointMake(0, contentOffset.y - self.bounds.size.height) animated:NO];
-        }
-    } completion:^(BOOL finished) {
-    }];
+    if (self.direction == KLRecycleScrollViewDirectionLeft) {
+        CGPoint contentOffset = self.scrollView.contentOffset;
+        [self.scrollView setContentOffset:CGPointMake(contentOffset.x + self.bounds.size.width, 0) animated:YES];
+    } else if (self.direction == KLRecycleScrollViewDirectionRight) {
+        CGPoint contentOffset = self.scrollView.contentOffset;
+        [self.scrollView setContentOffset:CGPointMake(contentOffset.x - self.bounds.size.width, 0) animated:YES];
+    } else if (self.direction == KLRecycleScrollViewDirectionTop) {
+        CGPoint contentOffset = self.scrollView.contentOffset;
+        [self.scrollView setContentOffset:CGPointMake(0, contentOffset.y + self.bounds.size.height) animated:YES];
+    } else if (self.direction == KLRecycleScrollViewDirectionBottom) {
+        CGPoint contentOffset = self.scrollView.contentOffset;
+        [self.scrollView setContentOffset:CGPointMake(0, contentOffset.y - self.bounds.size.height) animated:YES];
+    }
 }
 
 - (void)configTimer {
@@ -509,7 +525,53 @@
     self.scrollView.clipsToBounds = clipsToBounds;
 }
 
-#pragma mark - scroll view deleaget
+#pragma mark - scroll view delegate
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    if (self.pagingEnabled) {
+        static NSInteger lastIndex = -1;
+        if (self.direction == KLRecycleScrollViewDirectionLeft || self.direction == KLRecycleScrollViewDirectionRight) {//
+            __block CGFloat minDistanceFromLeftEdge = MAXFLOAT;
+            __block UIView *minDistanceFromLeftEdgeView;
+            __weak typeof(self) weakSelf = self;
+            [self.scrollView.visibleViews enumerateObjectsUsingBlock:^(id  _Nonnull view, NSUInteger idx, BOOL * _Nonnull stop) {
+                CGFloat distanceToLeftEdge = [weakSelf.scrollView getItemViewDistanceToLeftEdge:view];
+                if (distanceToLeftEdge < fabs(minDistanceFromLeftEdge)) {
+                    minDistanceFromLeftEdge = distanceToLeftEdge;
+                    minDistanceFromLeftEdgeView = view;
+                }
+            }];
+            
+            if (minDistanceFromLeftEdgeView) {
+                NSInteger index = [self.scrollView getItemViewIndex:minDistanceFromLeftEdgeView];
+                if (lastIndex != index && [self.delegate respondsToSelector:@selector(recycleScrollView:didScrollView:forItemToIndex:)]) {
+                    lastIndex = index;
+                    [self.delegate recycleScrollView:self didScrollView:minDistanceFromLeftEdgeView forItemToIndex:index];
+                }
+            }
+        } else if (self.direction == KLRecycleScrollViewDirectionTop || self.direction == KLRecycleScrollViewDirectionBottom) {
+            __block CGFloat minDistanceFromTopEdge = MAXFLOAT;
+            __block UIView *minDistanceFromTopEdgeView;
+            
+            __weak typeof(self) weakSelf = self;
+            [self.scrollView.visibleViews enumerateObjectsUsingBlock:^(id  _Nonnull view, NSUInteger idx, BOOL * _Nonnull stop) {
+                CGFloat distanceToTopEdge = [weakSelf.scrollView getItemViewDistanceToTopEdge:view];
+                if (distanceToTopEdge < fabs(minDistanceFromTopEdge)) {
+                    minDistanceFromTopEdge = distanceToTopEdge;
+                    minDistanceFromTopEdgeView = view;
+                }
+            }];
+            
+            if (minDistanceFromTopEdgeView) {
+                NSInteger index = [self.scrollView getItemViewIndex:minDistanceFromTopEdgeView];
+                if (lastIndex != index && [self.delegate respondsToSelector:@selector(recycleScrollView:didScrollView:forItemToIndex:)]) {
+                    lastIndex = index;
+                    [self.delegate recycleScrollView:self didScrollView:minDistanceFromTopEdgeView forItemToIndex:index];
+                }
+            }
+        }
+    }
+}
+
 - (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset {
     if (self.pagingEnabled) {
         if (self.direction == KLRecycleScrollViewDirectionLeft || self.direction == KLRecycleScrollViewDirectionRight) {
@@ -544,7 +606,7 @@
 
     __weak typeof(self) weakSelf = self;
     [self.scrollView.visibleViews enumerateObjectsUsingBlock:^(id  _Nonnull view, NSUInteger idx, BOOL * _Nonnull stop) {
-        CGFloat distanceToLeftEdge = [weakSelf.scrollView getDistanceToLeftEdge:view];
+        CGFloat distanceToLeftEdge = [weakSelf.scrollView getItemViewDistanceToLeftEdge:view];
         if (distanceToLeftEdge < fabs(minDistanceFromLeftEdge)) {
             minDistanceFromLeftEdge = distanceToLeftEdge;
             minDistanceFromLeftEdgeView = view;
@@ -557,7 +619,7 @@
     return targetOffset;
 }
 
-- (CGPoint)getTopestViewToTopEdge {
+- (CGPoint)getTopestViewToTopEdge{
     CGPoint offset = self.scrollView.contentOffset;
     
     __block CGFloat minDistanceFromTopEdge = MAXFLOAT;
@@ -565,7 +627,7 @@
     
     __weak typeof(self) weakSelf = self;
     [self.scrollView.visibleViews enumerateObjectsUsingBlock:^(id  _Nonnull view, NSUInteger idx, BOOL * _Nonnull stop) {
-        CGFloat distanceToTopEdge = [weakSelf.scrollView getDistanceToTopEdge:view];
+        CGFloat distanceToTopEdge = [weakSelf.scrollView getItemViewDistanceToTopEdge:view];
         if (distanceToTopEdge < fabs(minDistanceFromTopEdge)) {
             minDistanceFromTopEdge = distanceToTopEdge;
             minDistanceFromTopEdgeView = view;
