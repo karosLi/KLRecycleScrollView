@@ -224,7 +224,7 @@
     if (_leftMostVisibleViewIndex < 0) {
         _leftMostVisibleViewIndex = self.numberOfItems - 1;
     }
-
+    
     UIView *view;
     if ([self.infiniteDelegate respondsToSelector:@selector(infiniteScrollView:viewForItemAtIndex:)]) {
         view = [self.infiniteDelegate infiniteScrollView:self viewForItemAtIndex:_leftMostVisibleViewIndex];
@@ -469,19 +469,29 @@
 
 #pragma mark - timer
 - (void)fireTimer {
-    if (self.direction == KLRecycleScrollViewDirectionLeft) {
-        CGPoint contentOffset = self.scrollView.contentOffset;
-        [self.scrollView setContentOffset:CGPointMake(contentOffset.x + self.bounds.size.width, 0) animated:YES];
-    } else if (self.direction == KLRecycleScrollViewDirectionRight) {
-        CGPoint contentOffset = self.scrollView.contentOffset;
-        [self.scrollView setContentOffset:CGPointMake(contentOffset.x - self.bounds.size.width, 0) animated:YES];
-    } else if (self.direction == KLRecycleScrollViewDirectionTop) {
-        CGPoint contentOffset = self.scrollView.contentOffset;
-        [self.scrollView setContentOffset:CGPointMake(0, contentOffset.y + self.bounds.size.height) animated:YES];
-    } else if (self.direction == KLRecycleScrollViewDirectionBottom) {
-        CGPoint contentOffset = self.scrollView.contentOffset;
-        [self.scrollView setContentOffset:CGPointMake(0, contentOffset.y - self.bounds.size.height) animated:YES];
+    if (!self.timer && self.scrollView.isDragging) {
+        return;
     }
+    
+    [UIView animateWithDuration:0.3 delay:0  options:UIViewAnimationOptionCurveEaseInOut animations:^{
+        if (self.direction == KLRecycleScrollViewDirectionLeft) {
+            CGPoint contentOffset = self.scrollView.contentOffset;
+            [self.scrollView setContentOffset:CGPointMake(contentOffset.x + self.bounds.size.width, 0) animated:NO];
+        } else if (self.direction == KLRecycleScrollViewDirectionRight) {
+            CGPoint contentOffset = self.scrollView.contentOffset;
+            [self.scrollView setContentOffset:CGPointMake(contentOffset.x - self.bounds.size.width, 0) animated:NO];
+        } else if (self.direction == KLRecycleScrollViewDirectionTop) {
+            CGPoint contentOffset = self.scrollView.contentOffset;
+            [self.scrollView setContentOffset:CGPointMake(0, contentOffset.y + self.bounds.size.height) animated:NO];
+        } else if (self.direction == KLRecycleScrollViewDirectionBottom) {
+            CGPoint contentOffset = self.scrollView.contentOffset;
+            [self.scrollView setContentOffset:CGPointMake(0, contentOffset.y - self.bounds.size.height) animated:NO];
+        }
+    } completion:^(BOOL finished) {
+        // 修正偏移
+        CGPoint targetOffset = [self getTargetOffset:CGPointZero];
+        [self.scrollView setContentOffset:targetOffset];
+    }];
 }
 
 - (void)configTimer {
@@ -574,36 +584,44 @@
 
 - (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset {
     if (self.pagingEnabled) {
-        if (self.direction == KLRecycleScrollViewDirectionLeft || self.direction == KLRecycleScrollViewDirectionRight) {
-            NSInteger width = self.bounds.size.width;
-            NSInteger extra = 0;
-            if (velocity.x != 0) {
-                extra = velocity.x > 0 ? width : -width;
-            }
-            
-            CGPoint targetOffset = [self getLeftestViewToLeftEdge];
-            targetContentOffset->x = targetOffset.x + extra;
-            targetContentOffset->y = targetOffset.y;
-        } else if (self.direction == KLRecycleScrollViewDirectionTop || self.direction == KLRecycleScrollViewDirectionBottom) {
-            NSInteger height = self.bounds.size.height;
-            NSInteger extra = 0;
-            if (velocity.y != 0) {
-                extra = velocity.y > 0 ? height : -height;
-            }
-            
-            CGPoint targetOffset = [self getTopestViewToTopEdge];
-            targetContentOffset->x = targetOffset.x;
-            targetContentOffset->y = targetOffset.y + extra;
-        }
+        CGPoint targetOffset = [self getTargetOffset:velocity];
+        targetContentOffset->x = targetOffset.x;
+        targetContentOffset->y = targetOffset.y;
     }
+}
+
+- (CGPoint)getTargetOffset:(CGPoint)velocity {
+    if (self.direction == KLRecycleScrollViewDirectionLeft || self.direction == KLRecycleScrollViewDirectionRight) {
+        NSInteger width = self.bounds.size.width;
+        NSInteger extra = 0;
+        if (velocity.x != 0) {
+            extra = velocity.x > 0 ? width : -width;
+        }
+        
+        CGPoint targetOffset = [self getLeftestViewToLeftEdge];
+        targetOffset = CGPointMake(targetOffset.x + extra, targetOffset.y);
+        return targetOffset;
+    } else if (self.direction == KLRecycleScrollViewDirectionTop || self.direction == KLRecycleScrollViewDirectionBottom) {
+        NSInteger height = self.bounds.size.height;
+        NSInteger extra = 0;
+        if (velocity.y != 0) {
+            extra = velocity.y > 0 ? height : -height;
+        }
+        
+        CGPoint targetOffset = [self getTopestViewToTopEdge];
+        targetOffset = CGPointMake(targetOffset.x, targetOffset.y + extra);
+        return targetOffset;
+    }
+    
+    return self.scrollView.contentOffset;
 }
 
 - (CGPoint)getLeftestViewToLeftEdge {
     CGPoint offset = self.scrollView.contentOffset;
-
+    
     __block CGFloat minDistanceFromLeftEdge = MAXFLOAT;
     __block UIView *minDistanceFromLeftEdgeView;
-
+    
     __weak typeof(self) weakSelf = self;
     [self.scrollView.visibleViews enumerateObjectsUsingBlock:^(id  _Nonnull view, NSUInteger idx, BOOL * _Nonnull stop) {
         CGFloat distanceToLeftEdge = [weakSelf.scrollView getItemViewDistanceToLeftEdge:view];
@@ -612,10 +630,10 @@
             minDistanceFromLeftEdgeView = view;
         }
     }];
-
+    
     CGFloat targetX = offset.x + minDistanceFromLeftEdge;
     CGPoint targetOffset = CGPointMake(targetX, offset.y);
-
+    
     return targetOffset;
 }
 
@@ -661,3 +679,4 @@
 }
 
 @end
+
