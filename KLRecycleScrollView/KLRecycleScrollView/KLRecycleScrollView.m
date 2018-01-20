@@ -72,6 +72,7 @@
 #pragma mark - public
 - (void)reloadData:(NSInteger)numberOfItems {
     self.numberOfItems = numberOfItems;
+    [self.visibleViews removeAllObjects];
     [self setNeedsLayout];
 }
 
