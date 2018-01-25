@@ -460,6 +460,13 @@
     self.scrollView.decelerationRate = pagingEnabled ? UIScrollViewDecelerationRateFast : UIScrollViewDecelerationRateNormal;
 }
 
+- (void)setTimerEnabled:(BOOL)timerEnabled {
+    _timerEnabled = timerEnabled;
+    if (!timerEnabled) {
+        [self stopTimer];
+    }
+}
+
 - (void)setDirection:(KLRecycleScrollViewDirection)direction {
     _direction = direction;
     
@@ -509,10 +516,8 @@
 }
 
 - (void)stopTimer {
-    if (self.timerEnabled) {
-        [self.timer invalidate];
-        self.timer = nil;
-    }
+    [self.timer invalidate];
+    self.timer = nil;
 }
 
 #pragma mark - KLInfiniteScrollViewDelegate
