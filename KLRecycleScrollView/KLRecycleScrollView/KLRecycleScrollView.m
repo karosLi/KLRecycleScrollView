@@ -8,6 +8,66 @@
 
 #import "KLRecycleScrollView.h"
 
+/// A proxy used to hold a weak object.
+@interface _KLRecycleScrollViewProxy : NSProxy <NSURLSessionDelegate>
+@property (nonatomic, weak, readonly) id target;
+- (instancetype)initWithTarget:(id)target;
++ (instancetype)proxyWithTarget:(id)target;
+@end
+
+@implementation _KLRecycleScrollViewProxy
+- (instancetype)initWithTarget:(id)target {
+    _target = target;
+    return self;
+}
++ (instancetype)proxyWithTarget:(id)target {
+    return [[_KLRecycleScrollViewProxy alloc] initWithTarget:target];
+}
+- (id)forwardingTargetForSelector:(SEL)selector {
+    return _target;
+}
+- (void)forwardInvocation:(NSInvocation *)invocation {
+    void *null = NULL;
+    [invocation setReturnValue:&null];
+}
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)selector {
+    return [NSObject instanceMethodSignatureForSelector:@selector(init)];
+}
+- (BOOL)respondsToSelector:(SEL)aSelector {
+    return [_target respondsToSelector:aSelector];
+}
+- (BOOL)isEqual:(id)object {
+    return [_target isEqual:object];
+}
+- (NSUInteger)hash {
+    return [_target hash];
+}
+- (Class)superclass {
+    return [_target superclass];
+}
+- (Class)class {
+    return [_target class];
+}
+- (BOOL)isKindOfClass:(Class)aClass {
+    return [_target isKindOfClass:aClass];
+}
+- (BOOL)isMemberOfClass:(Class)aClass {
+    return [_target isMemberOfClass:aClass];
+}
+- (BOOL)conformsToProtocol:(Protocol *)aProtocol {
+    return [_target conformsToProtocol:aProtocol];
+}
+- (BOOL)isProxy {
+    return YES;
+}
+- (NSString *)description {
+    return [_target description];
+}
+- (NSString *)debugDescription {
+    return [_target debugDescription];
+}
+@end
+
 @class KLInfiniteScrollView;
 @protocol KLInfiniteScrollViewDelegate <NSObject>
 
@@ -505,7 +565,7 @@
 }
 
 - (void)configTimer {
-    self.timer = [NSTimer timerWithTimeInterval:self.scrollInterval target:self selector:@selector(fireTimer) userInfo:nil repeats:YES];
+    self.timer = [NSTimer timerWithTimeInterval:self.scrollInterval target:[_KLRecycleScrollViewProxy proxyWithTarget:self] selector:@selector(fireTimer) userInfo:nil repeats:YES];
     [[NSRunLoop mainRunLoop] addTimer:self.timer forMode:NSRunLoopCommonModes];
 }
 
@@ -683,6 +743,15 @@
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
     if (scrollView == self.scrollView) {
         [self startTimer];
+    }
+}
+
+// 避免没有显示的时候还占用主线程
+- (void)didMoveToWindow {
+    if (self.window) {
+        [self startTimer];
+    } else {
+        [self stopTimer];
     }
 }
 
