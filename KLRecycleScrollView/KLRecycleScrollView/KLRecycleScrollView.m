@@ -507,6 +507,11 @@
     [self stopTimer];
 }
 
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    self.scrollView.frame = self.bounds;
+}
+
 #pragma mark - public methods
 - (void)reloadData:(NSInteger)totalItemsCount {
     self.totalItemsCount = totalItemsCount;
